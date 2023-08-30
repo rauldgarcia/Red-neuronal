@@ -5,7 +5,7 @@ def softrelu(num):
     return math.log(1 + (math.e**num))
 
 def relu(num):
-    return max(0,num)
+    return max(0, num)
 
 listx = []
 listy = []
