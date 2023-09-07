@@ -1,13 +1,14 @@
 import matplotlib.pyplot as plt
 import math
 
-k = 1 # Constant
-a = 1 # Rate of the leak
+a = 1 # leakage coefficient
+b = 1 # input scaling
+c = 0 # inhibitory feedback gain
 
 listx = []
 listy = []
 t = 0
-for x in range (-10, 11):
+for x in range (0, 11):
     listx.append([x])
     listy.append([(k * (math.e ** (-a*t))) + (x/a)])
     t += 1
