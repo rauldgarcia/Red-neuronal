@@ -219,7 +219,7 @@ dense2 = Layer_Dense(64, 3)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
 
 # Create optimizer
-optimizer = Optimizer_SGD()
+optimizer = Optimizer_SGD(learning_rate=0.85)
 
 
 # Train in loop
