@@ -89,6 +89,101 @@ class Perceptron(object):
         return np.where(self.net_input(x) >= 0.0, 1, -1)
 
 
+class AdalineGD(object):
+
+    def __init__(self, eta=0.01, n_iter=50, random_state=1):
+        self.eta = eta
+        self.n_iter = n_iter
+        self.random_state = random_state
+
+    def fit(self, x, y):
+        rgen = np.random.RandomState(self.random_state)
+        self.w_ = rgen.normal(loc=0.0, scale=0.01, size=1 + x.shape[1])
+        self.cost_ = []
+
+        for i in range(self.n_iter):
+            net_input = self.net_input(x)
+            output = self.activation(net_input)
+            errors = (y - output)
+            self.w_[1:] += self.eta * x.T.dot(errors)
+            self.w_[0] += self.eta * errors.sum()
+            cost = (errors**2).sum() / 2
+            self.cost_.append(cost)
+        
+        return self
+    
+    def net_input(self, x):
+        return np.dot(x, self.w_[1:]) + self.w_[0]
+    
+    def activation(self, x):
+        return x
+    
+    def predict(self, x):
+        return np.where(self.activation(self.net_input(x)) >= 0, 1, -1)
+    
+
+
+class AdalineSGD(object):
+
+    def __init__(self, eta=0.01, n_iter=10, shuffle=True, random_state=None):
+        self.eta = eta
+        self.n_iter = n_iter
+        self.w_initialized = False
+        self.shuffle = shuffle
+        self.random_state = random_state
+
+    def fit(self, x, y):
+
+        self._initialize_weights(x.shape[1])
+        self.cost_ = []
+
+        for i in range(self.n_iter):
+            if self.shuffle:
+                x, y = self._shuffle(x, y)
+            cost = []
+            for xi, target in zip(x, y):
+                cost.append(self._update_weights(xi, target))
+            avg_cost = sum(cost) / len(y)
+            self.cost_.append(avg_cost)
+        return self
+    
+    def partial_fit(self, x, y):
+        if not self.w_initialized:
+            self._initialize_weights(x.shape[1])
+        if y.ravel().shape[0] > 1:
+            for xi, target in zip(x, y):
+                self._update_weights(xi, target)
+        else:
+            self._update_weights(x, y)
+        return self
+    
+    def _shuffle(self, x, y):
+        r = self.rgen.permutation(len(y))
+        return x[r], y[r]
+    
+    def _initialize_weights(self, m):
+        self.rgen = np.random.RandomState(self.random_state)
+        self.w_ = self.rgen.normal(loc=0.0, scale=0.01, size=1 + m)
+        self.w_initialized = True
+
+    def _update_weights(self, xi, target):
+        output = self.activation(self.net_input(xi))
+        error = (target - output)
+        self.w_[1:] += self.eta * xi.dot(error)
+        self.w_[0] += self.eta * error
+        cost = 0.5 * error**2
+        return cost
+    
+    def net_input(self, x):
+        return np.dot(x, self.w_[1:]) + self.w_[0]
+    
+    def activation(self, x):
+        return x
+    
+    def predict(self, x):
+        return np.where(self.activation(self.net_input(x)) >= 0, 1, -1)
+
+
 df = pd.read_csv('iris.csv')
 
 # Select setosa and versicolor
@@ -98,23 +193,20 @@ y = np.where(y == 'Iris-setosa', -1, 1)
 # Extract sepal length and petal lenght
 x = df.iloc[0:100, [0, 2]].values
 
-# Plot data
-plt.scatter(x[:50, 0], x[:50, 1], color='red', marker='o', label='setosa')
-plt.scatter(x[50:100, 0], x[50:100, 1], color='blue', marker='x', label='versicolor')
-plt.xlabel('Sepal lenght [cm]')
-plt.ylabel('Petal length [cm]')
+x_std = np.copy(x)
+x_std[:, 0] = (x[:, 0] - x[:, 0].mean()) / x[:, 0].std()
+x_std[:, 1] = (x[:, 1] - x[:, 1].mean()) / x[:, 1].std()
+
+ada = AdalineSGD(n_iter=15, eta=0.01, random_state=1).fit(x_std, y)
+plot_decision_region(x_std, y, classifier=ada)
+plt.title('Adaline - Stochastic Gradient Descent')
+plt.xlabel('Sepal length [std]')
+plt.ylabel('Petal length [std]')
 plt.legend(loc='upper left')
+plt.tight_layout()
 plt.show()
 
-ppn = Perceptron(eta=0.1, n_iter=10)
-ppn.fit(x, y)
-plt.plot(range(1, len(ppn.errors_) + 1), ppn.errors_, marker='o')
+plt.plot(range(1, len(ada.cost_) + 1), ada.cost_, marker='o')
 plt.xlabel('Epochs')
-plt.ylabel('Number of updates')
-plt.show()
-
-plot_decision_region(x, y, classifier=ppn)
-plt.xlabel('sepal length [cm]')
-plt.ylabel('petal length [cm]')
-plt.legend(loc='upper left')
+plt.ylabel('Average Cost')
 plt.show()
