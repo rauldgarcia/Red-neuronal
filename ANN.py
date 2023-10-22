@@ -1,6 +1,6 @@
 import numpy as np
 import nnfs
-from nnfs.datasets import sine_data
+from nnfs.datasets import spiral_data
 import matplotlib.pyplot as plt
 
 nnfs.init()
@@ -419,13 +419,17 @@ class Loss:
 
     # Calculates the data and regularization losses
     # given model output and ground truth values
-    def calculate(self, output, y):
+    def calculate(self, output, y, *, include_regularization=False):
         
         # Calculate sample losses
         sample_losses = self.forward(output, y)
 
         # Calculate mean loss
         data_loss = np.mean(sample_losses)
+
+        # If just data loss - return it
+        if not include_regularization:
+            return data_loss
 
         # Return the data and regularization losses
         return data_loss, self.regularization_loss()
@@ -626,7 +630,7 @@ class Accuracy:
 
 
 # Accuracy calculation for regression model
-class Accuracy_Categorical(Accuracy):
+class Accuracy_Regression(Accuracy):
 
     def __init__(self):
         # Create precision property
@@ -640,6 +644,20 @@ class Accuracy_Categorical(Accuracy):
     # Compares predictions to the ground truth values
     def compare(self, predictions, y):
         return np.absolute(predictions - y) < self.precision
+
+
+# Accuracy calculation for classification model
+class Accuracy_Categorical(Accuracy):
+
+    # No initialization is needed
+    def init(self, y):
+        pass
+
+    # Compares predictions to the ground truth values
+    def compare(self, predictions, y):
+        if len(y.shape) == 2:
+            y = np.argmax(y, axis=1)
+        return predictions == y
 
 
 # Model class
@@ -697,11 +715,11 @@ class Model:
             if hasattr(self.layers[i], 'weights'):
                 self.trainable_layers.append(self.layers[i])
 
-        # Update loss object with trainable layers
-        self.loss.remember_trainable_layers(self.trainable_layers)
+            # Update loss object with trainable layers
+            self.loss.remember_trainable_layer(self.trainable_layers)
 
     # Train the model
-    def train(self, x, y, *, epochs=1, print_every=1):
+    def train(self, x, y, *, epochs=1, print_every=1, validation_data=None):
 
         # Initialize accuracy object
         self.accuracy.init(y)
@@ -713,12 +731,51 @@ class Model:
             output = self.forward(x)
 
             # Calculate loss
-            data_loss, regularization_loss = self.loss.calculate(output, y)
+            data_loss, regularization_loss = self.loss.calculate(output, y, include_regularization=True)
             loss = data_loss + regularization_loss
 
             # Get predictions and calculate an accuracy
             predictions = self.output_layer_activation.predictions(output)
             accuracy = self.accuracy.calculate(predictions, y)
+
+            # Perform backward pass
+            self.backward(output, y)
+
+            # Optimize (update parameters)
+            self.optimizer.pre_update_params()
+            for layer in self.trainable_layers:
+                self.optimizer.update_params(layer)
+            self.optimizer.post_update_params()
+
+            # Print a summary
+            if not epoch % print_every:
+                print(f'epoch: {epoch}, ' +
+                      f'acc: {accuracy:.3f}, ' +
+                      f'loss: {loss:.3f}, ' +
+                      f'data_loss: {data_loss:.3f}, ' +
+                      f'reg_loss: {regularization_loss:.3f}, ' +
+                      f'lr: {self.optimizer.current_learning_rate}')
+                
+        # If there is the validation data
+        if validation_data is not None:
+
+            # For better readability
+            x_val, y_val = validation_data
+
+            # Perform the forward pass
+            output = self.forward(x_val)
+
+            # Calculate the loss
+            loss = self.loss.calculate(output, y_val)
+
+            # Get predictions and calculate an accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            accuracy = self.accuracy.calculate(predictions, y_val)
+
+            # Print a summaray
+            print(f'validation, ' +
+                  f'acc: {accuracy}:.3f, ' +
+                  f'loss: {loss:.3f}')
 
     # Performs forward pass
     def forward(self, x):
@@ -735,31 +792,49 @@ class Model:
 
         # "layer" is now the last object from the list, return its output
         return layer.output
+    
+    # Perform backward pass
+    def backward(self, output, y):
+
+        # First call backward method on the loss
+        # this will set dinputs property that the last layer will try to access shortly
+        self.loss.backward(output, y)
+
+        # Call backward method going through all the objects in reversed order passing dinputs as a parameter
+        for layer in reversed(self.layers):
+            layer.backward(layer.next.dinputs)
 
 
 # Create dataset
-x, y = sine_data()
+x, y = spiral_data(samples=100, classes=2)
+x_test, y_test = spiral_data(samples=100, classes=2)
+
+# Reshape labels to be a list of list
+# Inner list contains one output (either 0 or  1) per each output neuron,
+# 1 in this case
+y = y.reshape(-1, 1)
+y_test = y_test.reshape(-1, 1)
+
 
 # Instantiate the model
 model = Model()
 
 # Add layers
-model.add(Layer_Dense(1, 64))
-model.add(Activation_ReLU())
-model.add(Layer_Dense(64, 64))
+model.add(Layer_Dense(2, 64, weight_regularizer_l1=5e-4, weight_regularizer_l2=5e-4))
 model.add(Activation_ReLU())
 model.add(Layer_Dense(64, 1))
-model.add(Activation_Linear())
+model.add(Activation_Sigmoid())
 
 # Set loss and optimizer objects
 model.set(
-    loss=Loss_MeanSquaredError(),
-    optimizer=Optimizer_Adam(learning_rate=0.005, decay=1e-3),
+    loss=Loss_BinaryCrossentropy(),
+    optimizer=Optimizer_Adam(decay=5e-7),
+    accuracy=Accuracy_Categorical()
 )
 
 # Finalize the model
 model.finalize()
 
 # Train the model
-model.train(x, y, epochs=10000, print_every=100)
+model.train(x, y, validation_data=(x_test, y_test), epochs=10000, print_every=100)
 
