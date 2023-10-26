@@ -1,6 +1,7 @@
 import numpy as np
 import nnfs
-from nnfs.datasets import spiral_data
+import os
+import cv2
 import matplotlib.pyplot as plt
 
 nnfs.init()
@@ -776,7 +777,7 @@ class Model:
         self.accuracy.init(y)
 
         # Default value if batch size is not being set
-        train_set = 1
+        train_steps = 1
 
         # If theres is validation data passed, set default number of steps for validation as well
         if validation_data is not None:
@@ -791,7 +792,7 @@ class Model:
             # Dividing rounds down. If there are some remaining data, but not a full batch,
             # this won't include it. Add '1' to include this not full batch
             if train_steps * batch_size < len(x):
-                train_set += 1
+                train_steps += 1
 
             if validation_data is not None:
                 validation_steps = len(x_val) // batch_size
@@ -804,7 +805,7 @@ class Model:
         for epoch in range(1, epochs+1):
 
             # Print epoch number
-            print(f'epcho: {epoch}')
+            print(f'epoch: {epoch}')
 
             # Reset accumulated values in loss and accuracy objects
             self.loss.new_pass()
@@ -821,7 +822,7 @@ class Model:
                 # Otherwise slice a batch
                 else:
                     batch_x = x[step*batch_size: (step+1)*batch_size]
-                    batch_x = y[step*batch_size: (step+1)*batch_size]
+                    batch_y = y[step*batch_size: (step+1)*batch_size]
 
                 # Perform the worward pass
                 output = self.forward(batch_x, training=True)
@@ -948,24 +949,70 @@ class Model:
             layer.backward(layer.next.dinputs)
 
 
+# Loads a MNIST dataset
+def load_mnist_dataset(dataset, path):
+
+    # Scan all the directiories and create a list of labels
+    labels = os.listdir(os.path.join(path, dataset))
+
+    # Create list for samples and labels
+    x = []
+    y = []
+
+    # For each label folder
+    for label in labels:
+        # And for each image in given folder
+        for file in os.listdir(os.path.join(path, dataset, label)):
+            # Read the image
+            image = cv2.imread(os.path.join(path, dataset, label, file), cv2.IMREAD_UNCHANGED)
+
+            # And append it and a label to the lists
+            x.append(image)
+            y.append(label)
+
+    # Convert the data to proper numpy arrays and return
+    return np.array(x), np.array(y).astype('uint8')
+
+
+# MNIST dataset (train + test)
+def create_data_mnist(path):
+
+    # Load both sets separately
+    x, y = load_mnist_dataset('train', path)
+    x_test, y_test = load_mnist_dataset('test', path)
+
+    # And return all the data
+    return x, y, x_test, y_test
+
+
 # Create dataset
-x, y = spiral_data(samples=100, classes=3)
-x_test, y_test = spiral_data(samples=100, classes=3)
+x, y, x_test, y_test = create_data_mnist('fashion_mnist_images')
+
+# Shuffle the training dataset
+keys = np.array(range(x.shape[0]))
+np.random.shuffle(keys)
+x = x[keys]
+y = y[keys]
+
+# Scale and reshape samples
+x = (x.reshape(x.shape[0], -1).astype(np.float32) - 127.5) / 127.5
+x_test = (x_test.reshape(x_test.shape[0], -1).astype(np.float32) - 127.5) / 127.5
 
 # Instantiate the model
 model = Model()
 
 # Add layers
-model.add(Layer_Dense(2, 512, weight_regularizer_l1=5e-4, weight_regularizer_l2=5e-4))
+model.add(Layer_Dense(x.shape[1], 128))
 model.add(Activation_ReLU())
-model.add(Layer_Dropout(0.1))
-model.add(Layer_Dense(512, 3))
+model.add(Layer_Dense(128, 128))
+model.add(Activation_ReLU())
+model.add(Layer_Dense(128, 10))
 model.add(Activation_Softmax())
 
 # Set loss and optimizer objects and accuracy objects
 model.set(
     loss=Loss_CategoricalCrossentropy(),
-    optimizer=Optimizer_Adam(learning_rate=0.05, decay=5e-5),
+    optimizer=Optimizer_Adam(decay=1e-3),
     accuracy=Accuracy_Categorical()
 )
 
@@ -973,5 +1020,4 @@ model.set(
 model.finalize()
 
 # Train the model
-model.train(x, y, validation_data=(x_test, y_test), epochs=10000, print_every=100)
-
+model.train(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=128, print_every=100)
