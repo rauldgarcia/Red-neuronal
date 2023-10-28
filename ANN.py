@@ -55,6 +55,10 @@ class Layer_Dense:
         # Gradient on values
         self.dinputs = np.dot(dvalues, self.weights.T)
 
+    # Retrieve layer parameters
+    def get_parameters(self):
+        return self.weights, self.biases
+
 
 # Dropout
 class Layer_Dropout:
@@ -963,6 +967,19 @@ class Model:
         print(f'validation, ' +
               f'acc: {validation_accuracy:.3f}, ' +
               f'loss: {validation_loss:.3f}')
+        
+    # Retrieves and return parameters of trainable layers
+    def get_parameters(self):
+
+        # Create a list of parameters
+        parameters = []
+
+        # Iterable trainable layers and get their parameters
+        for layer in self.trainable_layers:
+            parameters.append(layer.get_parameters())
+
+        # Return a list
+        return parameters
 
 
 # Loads a MNIST dataset
@@ -1037,6 +1054,10 @@ model.finalize()
 
 # Train the model
 model.train(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=128, print_every=100)
+
+# Retrieve and print parameters
+parameters = model.get_parameters()
+print(parameters)
 
 model.evaluate(x_test, y_test)
 model.evaluate(x, y)
