@@ -2,7 +2,6 @@ import numpy as np
 import nnfs
 import os
 import cv2
-import matplotlib.pyplot as plt
 
 nnfs.init()
 
@@ -868,41 +867,8 @@ class Model:
             # If there is the validation data
             if validation_data is not None:
 
-                # Reset accumulated values in loss and accuracy objects
-                self.loss.new_pass()
-                self.accuracy.new_pass()
-
-                # Iterate over steps
-                for step in range(validation_steps):
-
-                    # If batch size is not set -  train using one step and full dataset
-                    if batch_size is None:
-                        batch_x = x_val
-                        batch_y = y_val
-
-                    # Otherwise slice a batch
-                    else:
-                        batch_x = x_val[step*batch_size: (step+1)*batch_size]
-                        batch_y = y_val[step*batch_size: (step+1)*batch_size]
-
-                    # Perform the forward pass
-                    output = self.forward(batch_x, training=False)
-
-                    # Calculate the loss
-                    loss = self.loss.calculate(output, batch_y)
-
-                    # Get predictions and calculate an accuracy
-                    predictions = self.output_layer_activation.predictions(output)
-                    self.accuracy.calculate(predictions, batch_y)
-
-                # Get and print validation loss and accuracy
-                validation_loss = self.loss.calculate_accumulated()
-                validation_accuracy = self.accuracy.calculate_accumulated()
-
-                # Print a summaray
-                print(f'validation, ' +
-                    f'acc: {validation_accuracy:.3f}, ' +
-                    f'loss: {validation_loss:.3f}')
+                # Evaluate the model:
+                self.evaluate(*validation_data, batch_size=batch_size)
 
     # Performs forward pass
     def forward(self, x, training):
@@ -947,6 +913,56 @@ class Model:
         # Call backward method going through all the objects in reversed order passing dinputs as a parameter
         for layer in reversed(self.layers):
             layer.backward(layer.next.dinputs)
+
+    # Evaluates the model using passed in dataset
+    def evaluate(self, x_val, y_val, *, batch_size=None):
+
+        # Default value if batch size is not being set
+        validation_steps = 1
+
+        # Calculate number of steps
+        if batch_size is not None:
+            validation_steps = len(x_val) // batch_size
+            # Diving rounds down. If there are some remaining data, but not a full batch, this won't include it
+            # Add '1' to include this not full batch
+            if validation_steps * batch_size < len(x_val):
+                validation_steps += 1
+
+        # Reset accumulated values in loss and accuracy objects
+        self.loss.new_pass()
+        self.accuracy.new_pass()
+
+        # Iterate over steps
+        for step in range(validation_steps):
+            
+            # If batch size is not set - train using one step and full dataset
+            if batch_size is None:
+                batch_x = x_val
+                batch_y = y_val
+
+            # Otherwise slice a batch
+            else:
+                batch_x = x_val[step*batch_size: (step+1)*batch_size]
+                batch_y = y_val[step*batch_size: (step+1)*batch_size]
+
+            # Perform the forward pass
+            output = self.forward(batch_x, training=False)
+
+            # Calculate the loss
+            self.loss.calculate(output, batch_y)
+
+            # Get predictions and calculate an accuracy
+            predictions = self.output_layer_activation.predictions(output)
+            self.accuracy.calculate(predictions, batch_y)
+
+        # Get and print validation loss and accuracy
+        validation_loss = self.loss.calculate_accumulated()
+        validation_accuracy = self.accuracy.calculate_accumulated()
+
+        # Print a summary
+        print(f'validation, ' +
+              f'acc: {validation_accuracy:.3f}, ' +
+              f'loss: {validation_loss:.3f}')
 
 
 # Loads a MNIST dataset
@@ -1021,3 +1037,6 @@ model.finalize()
 
 # Train the model
 model.train(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=128, print_every=100)
+
+model.evaluate(x_test, y_test)
+model.evaluate(x, y)
