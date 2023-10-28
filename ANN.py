@@ -58,6 +58,11 @@ class Layer_Dense:
     # Retrieve layer parameters
     def get_parameters(self):
         return self.weights, self.biases
+    
+    # Set weights and biases in a layer instance
+    def set_parameters(self, weights, biases):
+        self.weights = weights
+        self.biases = biases
 
 
 # Dropout
@@ -720,11 +725,17 @@ class Model:
     def add(self, layer):
         self.layers.append(layer)
 
-    # Set loss and optimizer
-    def set(self, *, loss, optimizer, accuracy):
-        self.loss = loss
-        self.optimizer = optimizer
-        self.accuracy = accuracy
+    # Set loss, optimizer and accuracy
+    def set(self, *, loss=None, optimizer=None, accuracy=None):
+        
+        if loss is not None:
+            self.loss = loss
+
+        if optimizer is not None:
+            self.optimizer = optimizer
+    
+        if accuracy is not None:
+            self.accuracy = accuracy
 
     # Finalize the model
     def finalize(self):
@@ -765,7 +776,8 @@ class Model:
                 self.trainable_layers.append(self.layers[i])
 
             # Update loss object with trainable layers
-            self.loss.remember_trainable_layer(self.trainable_layers)
+            if self.loss is not None:
+                self.loss.remember_trainable_layer(self.trainable_layers)
 
             # If output activation is Softmax and loss function is Categorical Cross-Entropy
             # create an object of combined activation and loss function containing faster gradient calculation
@@ -980,6 +992,13 @@ class Model:
 
         # Return a list
         return parameters
+    
+    # Update the model with new parameters
+    def set_parameters(self, parameters):
+
+        # Iterate over the parameters and layers and update each layers with each set of parameters
+        for parameter_set, layer in zip(parameters, self.trainable_layers):
+            layer.set_parameters(*parameter_set)
 
 
 # Loads a MNIST dataset
@@ -1045,7 +1064,7 @@ model.add(Activation_Softmax())
 # Set loss and optimizer objects and accuracy objects
 model.set(
     loss=Loss_CategoricalCrossentropy(),
-    optimizer=Optimizer_Adam(decay=1e-3),
+    optimizer=Optimizer_Adam(decay=1e-4),
     accuracy=Accuracy_Categorical()
 )
 
@@ -1057,7 +1076,29 @@ model.train(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=128, p
 
 # Retrieve and print parameters
 parameters = model.get_parameters()
-print(parameters)
 
+# New model
+
+# Instantiate the model
+model = Model()
+
+# Add layers
+model.add(Layer_Dense(x.shape[1], 128))
+model.add(Activation_ReLU())
+model.add(Layer_Dense(128, 128))
+model.add(Activation_ReLU())
+model.add(Layer_Dense(128, 10))
+model.add(Activation_Softmax())
+
+# Set loss and accuracy objects
+# We do not set optimizer object this time- there's no need to do it as we won't train the model
+model.set(loss=Loss_CategoricalCrossentropy(), accuracy=Accuracy_Categorical())
+
+# Finalize the model
+model.finalize()
+
+# Set model with parameters instead of training it
+model.set_parameters(parameters)
+
+# Evaluate the model
 model.evaluate(x_test, y_test)
-model.evaluate(x, y)
