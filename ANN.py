@@ -2,6 +2,7 @@ import numpy as np
 import nnfs
 import os
 import cv2
+import pickle
 
 nnfs.init()
 
@@ -1000,6 +1001,13 @@ class Model:
         for parameter_set, layer in zip(parameters, self.trainable_layers):
             layer.set_parameters(*parameter_set)
 
+    # Saves the parameters to a file
+    def save_parameters(self, path):
+
+        # Open a file in the binary-write mode and save parameters to it
+        with open(path, 'wb') as f:
+            pickle.dump(self.get_parameters(), f)
+
 
 # Loads a MNIST dataset
 def load_mnist_dataset(dataset, path):
@@ -1102,3 +1110,6 @@ model.set_parameters(parameters)
 
 # Evaluate the model
 model.evaluate(x_test, y_test)
+
+# Save parameters
+model.save_parameters('fashion_mnist.parms')
