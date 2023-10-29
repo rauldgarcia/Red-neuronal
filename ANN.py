@@ -1008,6 +1008,13 @@ class Model:
         with open(path, 'wb') as f:
             pickle.dump(self.get_parameters(), f)
 
+    # Loads the weights and updates a model instance with them
+    def load_parameters(self, path):
+
+        # Open file in the binary-read mode, load weights and update trainable layers
+        with open(path, 'rb') as f:
+            self.set_parameters(pickle.load(f))
+
 
 # Loads a MNIST dataset
 def load_mnist_dataset(dataset, path):
@@ -1072,44 +1079,14 @@ model.add(Activation_Softmax())
 # Set loss and optimizer objects and accuracy objects
 model.set(
     loss=Loss_CategoricalCrossentropy(),
-    optimizer=Optimizer_Adam(decay=1e-4),
     accuracy=Accuracy_Categorical()
 )
 
 # Finalize the model
 model.finalize()
 
-# Train the model
-model.train(x, y, validation_data=(x_test, y_test), epochs=10, batch_size=128, print_every=100)
-
-# Retrieve and print parameters
-parameters = model.get_parameters()
-
-# New model
-
-# Instantiate the model
-model = Model()
-
-# Add layers
-model.add(Layer_Dense(x.shape[1], 128))
-model.add(Activation_ReLU())
-model.add(Layer_Dense(128, 128))
-model.add(Activation_ReLU())
-model.add(Layer_Dense(128, 10))
-model.add(Activation_Softmax())
-
-# Set loss and accuracy objects
-# We do not set optimizer object this time- there's no need to do it as we won't train the model
-model.set(loss=Loss_CategoricalCrossentropy(), accuracy=Accuracy_Categorical())
-
-# Finalize the model
-model.finalize()
-
 # Set model with parameters instead of training it
-model.set_parameters(parameters)
+model.load_parameters('fashion_mnist.parms')
 
 # Evaluate the model
 model.evaluate(x_test, y_test)
-
-# Save parameters
-model.save_parameters('fashion_mnist.parms')
