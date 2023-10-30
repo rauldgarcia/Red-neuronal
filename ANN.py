@@ -3,6 +3,7 @@ import nnfs
 import os
 import cv2
 import pickle
+import copy
 
 nnfs.init()
 
@@ -1015,6 +1016,29 @@ class Model:
         with open(path, 'rb') as f:
             self.set_parameters(pickle.load(f))
 
+    # Saves the model
+    def save(self, path):
+
+        # Make a deep copy of current model instance
+        model = copy.deepcopy(self)
+
+        # Reset accumulated values in loss and accuracy objects
+        model.loss.new_pass()
+        model.accuracy.new_pass()
+
+        # Remove data from the input layer and gradients from the loss object
+        model.input_layer.__dict__.pop('output', None)
+        model.loss.__dict__.pop('dinputs', None)
+
+        # For each layer remove inputs, output and dinputs properties
+        for layer in model.layers:
+            for property in ['inputs', 'output', 'dinputs', 'dweights', 'dbiases']:
+                layer.__dict__.pop(property, None)
+
+        # Open a file in the binary-write mode and save the model
+        with open(path, 'wb') as f:
+            pickle.dump(model, f)
+
 
 # Loads a MNIST dataset
 def load_mnist_dataset(dataset, path):
@@ -1090,3 +1114,5 @@ model.load_parameters('fashion_mnist.parms')
 
 # Evaluate the model
 model.evaluate(x_test, y_test)
+
+model.save('fashion_mnist.model')
