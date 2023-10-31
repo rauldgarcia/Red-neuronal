@@ -1,4 +1,9 @@
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
@@ -184,27 +189,49 @@ class AdalineSGD(object):
         return np.where(self.activation(self.net_input(x)) >= 0, 1, -1)
 
 
-df = pd.read_csv('iris.csv')
+df = pd.DataFrame([[4, 4, 'A', 1, 1],
+                   [3.5, 3.5, 'A', 1, 1],
+                   [3, 4, 'A', 1, 1],
+                   [3.5, 4, 'A', 1, 1],
+                   [5, 2, 'B', 1, 0],
+                   [4.5, 2.5, 'B', 1, 0],
+                   [5, 3, 'B', 1, 0],
+                   [4.5, 3, 'B', 1, 0],
+                   [3, 1, 'C', 0, 0],
+                   [2.5, 1.5, 'C', 0, 0],
+                   [3.5, 2, 'C', 0, 0],
+                   [4, 1.2, 'C', 0, 0],
+                   [1, 2, 'D', 0, 1],
+                   [1.5, 2.5, 'D', 0, 1],
+                   [2, 3, 'D', 0, 1],
+                   [1.5, 3.5, 'D', 0, 1]], columns=['x', 'y', 't', 'y1', 'y2'])
 
 # Select setosa and versicolor
-y = df.iloc[0:100, 4].values
-y = np.where(y == 'Iris-setosa', -1, 1)
+y1 = df.iloc[:, [3]].values
+y2 = df.iloc[:, [4]].values
 
 # Extract sepal length and petal lenght
-x = df.iloc[0:100, [0, 2]].values
+x = df.iloc[:, [0,1]].values
 
-x_std = np.copy(x)
-x_std[:, 0] = (x[:, 0] - x[:, 0].mean()) / x[:, 0].std()
-x_std[:, 1] = (x[:, 1] - x[:, 1].mean()) / x[:, 1].std()
+keys = np.array(range(len(x)))
+np.random.shuffle(keys)
+x = x[keys]
+y1 = y1[keys]
+y2 = y2[keys]
 
 print('x')
-print(x_std)
-print('y')
-print(np.shape(y))
+print(x)
+print('y1')
+y1 = np.reshape(y1, (len(y1),))
+y2 = np.reshape(y2, (len(y2),))
+print(y1)
 
-'''
-ada = AdalineSGD(n_iter=15, eta=0.01, random_state=1).fit(x_std, y)
-plot_decision_region(x_std, y, classifier=ada)
+
+ada1 = AdalineSGD(n_iter=20000, eta=0.05, random_state=1).fit(x, y1)
+plot_decision_region(x, y2, classifier=ada1)
+ada2 = AdalineSGD(n_iter=20000, eta=0.05, random_state=1).fit(x, y2)
+plot_decision_region(x, y2, classifier=ada2)
+
 plt.title('Adaline - Stochastic Gradient Descent')
 plt.xlabel('Sepal length [std]')
 plt.ylabel('Petal length [std]')
@@ -212,7 +239,12 @@ plt.legend(loc='upper left')
 plt.tight_layout()
 plt.show()
 
-plt.plot(range(1, len(ada.cost_) + 1), ada.cost_, marker='o')
+'''plt.plot(range(1, len(ada.cost_) + 1), ada.cost_, marker='o')
 plt.xlabel('Epochs')
 plt.ylabel('Average Cost')
+plt.show()
+
+print()
+
+sns.scatterplot(data=df, x='x', y='y', hue='t')
 plt.show()'''
