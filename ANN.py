@@ -1039,6 +1039,54 @@ class Model:
         with open(path, 'wb') as f:
             pickle.dump(model, f)
 
+    # Load and returns a model
+    @staticmethod
+    def load(path):
+
+        # Open file in the binary-read mode, load a model
+        with open(path, 'rb') as f:
+            model = pickle.load(f)
+
+        # Return a model
+        return model
+    
+    # Predicts on the samples
+    def predict(self, x, *, batch_size=None):
+
+        # Default value if batch size is not being set
+        prediction_steps = 1
+
+        # Calculate number of steps
+        if batch_size is not None:
+            prediction_steps = len(x) // batch_size
+            # Diving rounds down. If there are some remaining data, but not a full batch,
+            # this won't include it. Add '1' to include this not full batch
+            if prediction_steps * batch_size < len(x):
+                prediction_steps += 1
+
+        # Model outputs
+        output = []
+
+        # Iterate over steps
+        for step in range(prediction_steps):
+
+            # If batch size is not set - train using one step and full dataset
+            if batch_size is None:
+                batch_x = x
+
+            # Otherwise slice a batch
+            else:
+                batch_x = x[step*batch_size: (step+1)*batch_size]
+
+            # Perform the forward pass
+            batch_output = self.forward(batch_x, training=False)
+
+            # Append batch prediction to the list of predictions
+            output.append(batch_output)
+
+        # Stack and return results
+        return np.vstack(output)
+
 
 # Loads a MNIST dataset
 def load_mnist_dataset(dataset, path):
@@ -1076,6 +1124,19 @@ def create_data_mnist(path):
     return x, y, x_test, y_test
 
 
+fashion_mnist_labels = {
+    0: 'T-shirt/top',
+    1: 'Trouser',
+    2: 'Pullover',
+    3: 'Dress',
+    4: 'Coat',
+    5: 'Sandal',
+    6: 'Shirt',
+    7: 'Sneaker',
+    8: 'Bag',
+    9: 'Ankle boot'
+}
+
 # Create dataset
 x, y, x_test, y_test = create_data_mnist('fashion_mnist_images')
 
@@ -1090,29 +1151,11 @@ x = (x.reshape(x.shape[0], -1).astype(np.float32) - 127.5) / 127.5
 x_test = (x_test.reshape(x_test.shape[0], -1).astype(np.float32) - 127.5) / 127.5
 
 # Instantiate the model
-model = Model()
+model = Model.load('fashion_mnist.model')
 
-# Add layers
-model.add(Layer_Dense(x.shape[1], 128))
-model.add(Activation_ReLU())
-model.add(Layer_Dense(128, 128))
-model.add(Activation_ReLU())
-model.add(Layer_Dense(128, 10))
-model.add(Activation_Softmax())
+# Predict on the first 5 samples from validation dataset and print the result
+confidences = model.predict(x_test[:5])
+predictions = model.output_layer_activation.predictions(confidences)
 
-# Set loss and optimizer objects and accuracy objects
-model.set(
-    loss=Loss_CategoricalCrossentropy(),
-    accuracy=Accuracy_Categorical()
-)
-
-# Finalize the model
-model.finalize()
-
-# Set model with parameters instead of training it
-model.load_parameters('fashion_mnist.parms')
-
-# Evaluate the model
-model.evaluate(x_test, y_test)
-
-model.save('fashion_mnist.model')
+for prediction in predictions:
+    print(fashion_mnist_labels[prediction])
