@@ -1137,25 +1137,20 @@ fashion_mnist_labels = {
     9: 'Ankle boot'
 }
 
-# Create dataset
-x, y, x_test, y_test = create_data_mnist('fashion_mnist_images')
-
-# Shuffle the training dataset
-keys = np.array(range(x.shape[0]))
-np.random.shuffle(keys)
-x = x[keys]
-y = y[keys]
-
-# Scale and reshape samples
-x = (x.reshape(x.shape[0], -1).astype(np.float32) - 127.5) / 127.5
-x_test = (x_test.reshape(x_test.shape[0], -1).astype(np.float32) - 127.5) / 127.5
+image_data = cv2.imread('pants.png', cv2.IMREAD_GRAYSCALE)
+image_data = cv2.resize(image_data, (28, 28))
+image_data = 255 - image_data
+image_data = (image_data.reshape(1, -1).astype(np.float32) - 127.5) / 127.5
 
 # Instantiate the model
 model = Model.load('fashion_mnist.model')
 
-# Predict on the first 5 samples from validation dataset and print the result
-confidences = model.predict(x_test[:5])
+# Predict on the image
+confidences = model.predict(image_data)
+
+# Get prediction instead of confidence levels
 predictions = model.output_layer_activation.predictions(confidences)
 
-for prediction in predictions:
-    print(fashion_mnist_labels[prediction])
+# Get label name from label index
+prediction = fashion_mnist_labels[predictions[0]]
+print(prediction)
